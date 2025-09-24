@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:13
+    container_name: rtims-postgres
+    environment:
+      POSTGRES_DB: rtims
+      POSTGRES_USER: rtims_user
+      POSTGRES_PASSWORD: rtims_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - rtims-network
+
+  # Redis Cache
+  redis:
+    image: redis:6-alpine
+    container_name: rtims-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - rtims-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rtims-backend
+    environment:
+      ENVIRONMENT: production
+      PORT: 8080
+      DATABASE_URL: postgres://rtims_user:rtims_password@postgres:5432/rtims?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+      REFRESH_SECRET: your-super-secret-refresh-key-change-this-in-production
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - rtims-network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rtims-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - rtims-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  rtims-network:
+    driver: bridge
