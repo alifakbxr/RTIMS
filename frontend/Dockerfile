@@ -1,5 +1,5 @@
 # Install dependencies only when needed
-FROM node:18-alpine AS deps
+FROM node:18 AS deps
 WORKDIR /app
 
 # Copy package files
@@ -7,7 +7,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --only=production
 
 # Rebuild the source code only when needed
-FROM node:18-alpine AS builder
+FROM node:18 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -15,11 +15,11 @@ COPY . .
 # Set environment variables for build
 ENV NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
 
-# Build the application
-RUN npm run build
+# Rebuild native modules and build the application
+RUN npm rebuild && npx next build
 
 # Production image, copy all the files and run next
-FROM node:18-alpine AS runner
+FROM node:18 AS runner
 WORKDIR /app
 
 ENV NODE_ENV production

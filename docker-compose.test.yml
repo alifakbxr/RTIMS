@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # Test Database
+  postgres-test:
+    image: postgres:13
+    container_name: rtims-postgres-test
+    environment:
+      POSTGRES_DB: rtims_test
+      POSTGRES_USER: rtims_user
+      POSTGRES_PASSWORD: rtims_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - rtims-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rtims_user -d rtims_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Test Redis
+  redis-test:
+    image: redis:6-alpine
+    container_name: rtims-redis-test
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_test_data:/data
+    networks:
+      - rtims-test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Test Backend
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rtims-backend-test
+    environment:
+      ENVIRONMENT: test
+      PORT: 8081
+      DATABASE_URL: postgres://rtims_user:rtims_password@postgres-test:5432/rtims_test?sslmode=disable
+      REDIS_URL: redis://redis-test:6379
+      JWT_SECRET: test-jwt-secret-key-for-ci-cd-pipeline
+      REFRESH_SECRET: test-refresh-secret-key-for-ci-cd-pipeline
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    networks:
+      - rtims-test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Test Frontend
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rtims-frontend-test
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8081/api/v1
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend-test
+    networks:
+      - rtims-test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_test_data:
+  redis_test_data:
+
+networks:
+  rtims-test-network:
+    driver: bridge

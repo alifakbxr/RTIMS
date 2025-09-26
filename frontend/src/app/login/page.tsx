@@ -43,60 +43,72 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Sign in</CardTitle>
-          <CardDescription className="text-center">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md shadow-medium border-border">
+        <CardHeader className="space-y-3 pb-6">
+          <CardTitle className="text-3xl font-bold text-center text-foreground">Sign in</CardTitle>
+          <CardDescription className="text-center text-muted-foreground text-base">
             Enter your email and password to access your account
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <CardContent className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+              <Alert variant="destructive" className="border-destructive/20">
+                <AlertDescription className="text-destructive-foreground">{error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-sm font-semibold text-foreground">Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="Enter your email"
+                className="h-11 text-base"
                 {...register('email')}
               />
               {errors.email && (
-                <p className="text-sm text-red-600">{errors.email.message}</p>
+                <p className="text-sm text-destructive font-medium">{errors.email.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-sm font-semibold text-foreground">Password</Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="Enter your password"
+                className="h-11 text-base"
                 {...register('password')}
               />
               {errors.password && (
-                <p className="text-sm text-red-600">{errors.password.message}</p>
+                <p className="text-sm text-destructive font-medium">{errors.password.message}</p>
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              className="w-full h-12 text-base font-semibold transition-all hover:shadow-soft"
+              disabled={isSubmitting}
+            >
               {isSubmitting ? 'Signing in...' : 'Sign in'}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+          <div className="pt-4 border-t border-border">
+            <p className="text-sm font-medium text-muted-foreground text-center mb-3">
               Demo accounts:
             </p>
-            <div className="mt-2 text-xs text-gray-500">
-              <p>Admin: admin@example.com / admin123</p>
-              <p>Staff: staff@example.com / staff123</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                <span className="text-muted-foreground">Admin:</span>
+                <code className="text-foreground font-mono">admin@example.com</code>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                <span className="text-muted-foreground">Staff:</span>
+                <code className="text-foreground font-mono">staff@example.com</code>
+              </div>
             </div>
           </div>
         </CardContent>

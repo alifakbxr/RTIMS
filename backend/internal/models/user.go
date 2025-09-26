@@ -3,6 +3,7 @@ package models
 import (
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
 
@@ -58,4 +59,19 @@ type AuthResponse struct {
 
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
+type Claims struct {
+	UserID uuid.UUID `json:"user_id"`
+	Email  string    `json:"email"`
+	Role   UserRole  `json:"role"`
+	jwt.RegisteredClaims
+}
+
+type UserFilter struct {
+	Page     int    `form:"page" json:"page"`
+	Limit    int    `form:"limit" json:"limit"`
+	Search   string `form:"search" json:"search"`
+	Role     string `form:"role" json:"role"`
+	IsActive string `form:"is_active" json:"is_active"`
 }

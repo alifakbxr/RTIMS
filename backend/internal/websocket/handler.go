@@ -31,7 +31,7 @@ func ServeWebSocket(hub *Hub, c *gin.Context, db *sql.DB, redisClient *redis.Cli
 	}
 
 	// Get current user info
-	userID, role, err := middleware.GetCurrentUser(c)
+	userID, _, err := middleware.GetCurrentUser(c)
 	if err != nil {
 		log.Println("Failed to get user info:", err)
 		conn.Close()

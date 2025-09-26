@@ -1,0 +1,95 @@
+name: Database Migration
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'database/migrations/**'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  POSTGRES_IMAGE: ${{ github.repository }}/postgres-migrator
+
+jobs:
+  migration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: rtims_migration_test
+          POSTGRES_USER: rtims_user
+          POSTGRES_PASSWORD: rtims_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+
+    - name: Install golang-migrate
+      run: |
+        curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+        sudo mv migrate /usr/local/bin/
+
+    - name: Test migrations
+      run: |
+        export DATABASE_URL="postgres://rtims_user:rtims_password@localhost:5432/rtims_migration_test?sslmode=disable"
+        migrate -database ${DATABASE_URL} -path database/migrations up
+
+    - name: Verify migration integrity
+      run: |
+        export DATABASE_URL="postgres://rtims_user:rtims_password@localhost:5432/rtims_migration_test?sslmode=disable"
+        migrate -database ${DATABASE_URL} -path database/migrations version
+
+  build-migrator:
+    runs-on: ubuntu-latest
+    needs: migration-test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.POSTGRES_IMAGE }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push migration image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        dockerfile: ./database/Dockerfile.migrator
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

@@ -1,19 +1,37 @@
 package handlers
 
 import (
+	"database/sql"
+	"log"
 	"net/http"
 	"time"
 
+	"rtims-backend/internal/database"
 	"rtims-backend/internal/models"
 	"rtims-backend/internal/middleware"
+	"rtims-backend/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
-var now = time.Now()
+type NotificationHandler struct {
+	notificationService *database.NotificationService
+	auditService        *database.AuditService
+	db                  *sql.DB
+	hub                 *websocket.Hub
+}
 
-func GetNotifications(c *gin.Context) {
+func NewNotificationHandler(db *sql.DB, hub *websocket.Hub) *NotificationHandler {
+	return &NotificationHandler{
+		notificationService: database.NewNotificationService(db),
+		auditService:        database.NewAuditService(db),
+		db:                  db,
+		hub:                 hub,
+	}
+}
+
+func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 	userID, _, err := middleware.GetCurrentUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -38,32 +56,14 @@ func GetNotifications(c *gin.Context) {
 		filter.Limit = 100
 	}
 
-	offset := (filter.Page - 1) * filter.Limit
+	filter.UserID = &userID
 
-	// TODO: Get notifications from database with filters
-	// This would be implemented when we create the database service
-
-	// Mock data for demonstration
-	notifications := []models.Notification{
-		{
-			ID:        uuid.New(),
-			UserID:    userID,
-			Message:   "Product 'Sample Product' stock is low (5 remaining)",
-			Type:      models.NotificationLowStock,
-			IsRead:    false,
-			CreatedAt: now,
-		},
-		{
-			ID:        uuid.New(),
-			UserID:    userID,
-			Message:   "System maintenance scheduled for tonight",
-			Type:      models.NotificationSystem,
-			IsRead:    true,
-			CreatedAt: now.Add(-time.Hour),
-		},
+	// Get notifications from database
+	notifications, total, err := h.notificationService.GetNotifications(filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get notifications: " + err.Error()})
+		return
 	}
-
-	total := len(notifications)
 
 	c.JSON(http.StatusOK, gin.H{
 		"notifications": notifications,
@@ -76,7 +76,7 @@ func GetNotifications(c *gin.Context) {
 	})
 }
 
-func MarkNotificationRead(c *gin.Context) {
+func (h *NotificationHandler) MarkNotificationRead(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid notification ID"})
@@ -89,11 +89,32 @@ func MarkNotificationRead(c *gin.Context) {
 		return
 	}
 
-	// TODO: Mark notification as read in database
-	// This would be implemented when we create the database service
+	// Mark notification as read in database
+	err = h.notificationService.MarkAsRead(id, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark notification as read: " + err.Error()})
+		return
+	}
 
-	// TODO: Create audit log
-	// This would be implemented when we create the audit service
+	// Create audit log
+	auditLog := &models.AuditLog{
+		ID:         uuid.New(),
+		TableName:  "notifications",
+		RecordID:   id,
+		Action:     models.ActionUpdate,
+		OldValues:  gin.H{"is_read": false},
+		NewValues:  gin.H{"is_read": true},
+		ChangedBy:  userID,
+		ChangedAt:  time.Now(),
+		IPAddress:  c.ClientIP(),
+		UserAgent:  c.GetHeader("User-Agent"),
+	}
+
+	err = h.auditService.CreateAuditLog(auditLog)
+	if err != nil {
+		// Log error but don't fail the request
+		log.Printf("Failed to create audit log: %v", err)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Notification marked as read",
@@ -102,35 +123,64 @@ func MarkNotificationRead(c *gin.Context) {
 	})
 }
 
-func CreateNotification(c *gin.Context) {
+func (h *NotificationHandler) CreateNotification(c *gin.Context) {
 	var req models.CreateNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// TODO: Save notification to database
-	// This would be implemented when we create the database service
+	// Get current user for audit logging
+	userID, _, err := middleware.GetCurrentUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
 
-	notification := models.Notification{
+	// Create notification object
+	notification := &models.Notification{
 		ID:        uuid.New(),
 		UserID:    req.UserID,
 		Message:   req.Message,
 		Type:      req.Type,
 		IsRead:    false,
-		CreatedAt: now,
+		CreatedAt: time.Now(),
 	}
 
-	// TODO: Create audit log
-	// This would be implemented when we create the audit service
+	// Save notification to database
+	err = h.notificationService.CreateNotification(notification)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create notification: " + err.Error()})
+		return
+	}
 
-	// TODO: Send WebSocket notification
-	// This would be implemented when we integrate WebSocket
+	// Create audit log
+	auditLog := &models.AuditLog{
+		ID:         uuid.New(),
+		TableName:  "notifications",
+		RecordID:   notification.ID,
+		Action:     models.ActionCreate,
+		OldValues:  nil,
+		NewValues:  gin.H{"user_id": req.UserID, "message": req.Message, "type": req.Type},
+		ChangedBy:  userID,
+		ChangedAt:  time.Now(),
+		IPAddress:  c.ClientIP(),
+		UserAgent:  c.GetHeader("User-Agent"),
+	}
+
+	err = h.auditService.CreateAuditLog(auditLog)
+	if err != nil {
+		// Log error but don't fail the request
+		log.Printf("Failed to create audit log: %v", err)
+	}
+
+	// Send WebSocket notification
+	websocket.BroadcastNotification(h.hub, req.UserID, req.Message, string(req.Type))
 
 	c.JSON(http.StatusCreated, notification)
 }
 
-func GetAuditLogs(c *gin.Context) {
+func (h *NotificationHandler) GetAuditLogs(c *gin.Context) {
 	// Parse query parameters
 	var filter models.AuditLogFilter
 	if err := c.ShouldBindQuery(&filter); err != nil {
@@ -149,40 +199,12 @@ func GetAuditLogs(c *gin.Context) {
 		filter.Limit = 100
 	}
 
-	offset := (filter.Page - 1) * filter.Limit
-
-	// TODO: Get audit logs from database with filters
-	// This would be implemented when we create the database service
-
-	// Mock data for demonstration
-	auditLogs := []models.AuditLog{
-		{
-			ID:         uuid.New(),
-			TableName:  "products",
-			RecordID:   uuid.New(),
-			Action:     models.ActionCreate,
-			OldValues:  nil,
-			NewValues:  gin.H{"name": "Sample Product", "sku": "SP001"},
-			ChangedBy:  uuid.New(),
-			ChangedAt:  now,
-			IPAddress:  "192.168.1.1",
-			UserAgent:  "Mozilla/5.0",
-		},
-		{
-			ID:         uuid.New(),
-			TableName:  "users",
-			RecordID:   uuid.New(),
-			Action:     models.ActionLogin,
-			OldValues:  nil,
-			NewValues:  nil,
-			ChangedBy:  uuid.New(),
-			ChangedAt:  now.Add(-time.Hour),
-			IPAddress:  "192.168.1.1",
-			UserAgent:  "Mozilla/5.0",
-		},
+	// Get audit logs from database
+	auditLogs, total, err := h.auditService.GetAuditLogs(filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get audit logs: " + err.Error()})
+		return
 	}
-
-	total := len(auditLogs)
 
 	c.JSON(http.StatusOK, gin.H{
 		"audit_logs": auditLogs,
@@ -195,27 +217,17 @@ func GetAuditLogs(c *gin.Context) {
 	})
 }
 
-func GetAuditLog(c *gin.Context) {
+func (h *NotificationHandler) GetAuditLog(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid audit log ID"})
 		return
 	}
 
-	// TODO: Get audit log from database
-	// This would be implemented when we create the database service
-
-	auditLog := models.AuditLog{
-		ID:         id,
-		TableName:  "products",
-		RecordID:   uuid.New(),
-		Action:     models.ActionCreate,
-		OldValues:  nil,
-		NewValues:  gin.H{"name": "Sample Product", "sku": "SP001"},
-		ChangedBy:  uuid.New(),
-		ChangedAt:  now,
-		IPAddress:  "192.168.1.1",
-		UserAgent:  "Mozilla/5.0",
+	auditLog, err := h.auditService.GetAuditLog(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Audit log not found"})
+		return
 	}
 
 	c.JSON(http.StatusOK, auditLog)

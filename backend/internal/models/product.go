@@ -14,7 +14,7 @@ type Product struct {
 	Price            float64   `json:"price" db:"price" validate:"min=0"`
 	Category         string    `json:"category" db:"category" validate:"required"`
 	MinimumThreshold int       `json:"minimum_threshold" db:"minimum_threshold" validate:"min=0"`
-	SupplierInfo     string    `json:"supplier_info" db:"supplier_info"`
+	SupplierInfo     interface{} `json:"supplier_info" db:"supplier_info"`
 	CreatedAt        time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
 }
@@ -26,7 +26,7 @@ type CreateProductRequest struct {
 	Price            float64 `json:"price" validate:"min=0"`
 	Category         string  `json:"category" validate:"required"`
 	MinimumThreshold int     `json:"minimum_threshold" validate:"min=0"`
-	SupplierInfo     string  `json:"supplier_info"`
+	SupplierInfo     interface{} `json:"supplier_info"`
 }
 
 type UpdateProductRequest struct {
@@ -36,7 +36,7 @@ type UpdateProductRequest struct {
 	Price            *float64 `json:"price,omitempty" validate:"omitempty,min=0"`
 	Category         *string  `json:"category,omitempty"`
 	MinimumThreshold *int     `json:"minimum_threshold,omitempty" validate:"omitempty,min=0"`
-	SupplierInfo     *string  `json:"supplier_info,omitempty"`
+	SupplierInfo     *interface{} `json:"supplier_info,omitempty"`
 }
 
 type ProductFilter struct {

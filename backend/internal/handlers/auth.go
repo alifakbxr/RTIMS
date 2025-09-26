@@ -1,23 +1,51 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
+	"log"
 	"net/http"
 	"time"
 
+	"rtims-backend/internal/database"
 	"rtims-backend/internal/models"
 	"rtims-backend/internal/middleware"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var jwtSecret []byte
+var userService *database.UserService
+var auditService *database.AuditService
+var redisClient *redis.Client
+var emailService *EmailService
+var ctx = context.Background()
 
-func InitAuthHandlers(secret []byte) {
+// Simple email service for sending password reset emails
+type EmailService struct{}
+
+func NewEmailService() *EmailService {
+	return &EmailService{}
+}
+
+func (es *EmailService) SendPasswordResetEmail(to, resetToken string) error {
+	// TODO: Implement real email service integration
+	// This should integrate with SMTP, SendGrid, AWS SES, or similar service
+	// For now, return an error to indicate this needs to be implemented
+	return fmt.Errorf("email service not implemented - please configure SMTP or email service provider")
+}
+
+func InitAuthHandlers(secret []byte, db *sql.DB, redis *redis.Client) {
 	jwtSecret = secret
+	userService = database.NewUserService(db)
+	auditService = database.NewAuditService(db)
+	redisClient = redis
+	emailService = NewEmailService()
 }
 
 func Register(c *gin.Context) {
@@ -46,11 +74,35 @@ func Register(c *gin.Context) {
 		UpdatedAt: time.Now(),
 	}
 
-	// TODO: Save to database
-	// This would be implemented when we create the database service
+	// Save to database
+	err = userService.CreateUser(&user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user: " + err.Error()})
+		return
+	}
+
+	// Create audit log
+	auditLog := &models.AuditLog{
+		ID:         uuid.New(),
+		TableName:  "users",
+		RecordID:   user.ID,
+		Action:     models.ActionCreate,
+		OldValues:  nil,
+		NewValues:  map[string]interface{}{"name": req.Name, "email": req.Email, "role": user.Role},
+		ChangedBy:  user.ID, // User created themselves
+		ChangedAt:  time.Now(),
+		IPAddress:  c.ClientIP(),
+		UserAgent:  c.GetHeader("User-Agent"),
+	}
+
+	err = auditService.CreateAuditLog(auditLog)
+	if err != nil {
+		// Log error but don't fail the request
+		log.Printf("Failed to create audit log: %v", err)
+	}
 
 	// Generate tokens
-	accessToken, refreshToken := generateTokens(user)
+	accessToken, _ := generateTokens(user)
 
 	response := models.AuthResponse{
 		User:        user,
@@ -63,61 +115,50 @@ func Register(c *gin.Context) {
 }
 
 func Login(c *gin.Context) {
-	var req models.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+  var req models.LoginRequest
+  if err := c.ShouldBindJSON(&req); err != nil {
+    c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+    return
+  }
 
-	// TODO: Get user from database
-	// This would be implemented when we create the database service
-	var user models.User
-	var hashedPassword string
+  // Get user from database
+  user, err := userService.GetUserByEmail(req.Email)
+  if err != nil {
+  	c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+  	return
+  }
 
-	// For now, create a mock user for demonstration
-	if req.Email == "admin@example.com" && req.Password == "admin123" {
-		user = models.User{
-			ID:       uuid.New(),
-			Name:     "Admin User",
-			Email:    req.Email,
-			Role:     models.RoleAdmin,
-			IsActive: true,
-		}
-		hashedPassword = "$2a$10$mockhashedpassword"
-	} else if req.Email == "staff@example.com" && req.Password == "staff123" {
-		user = models.User{
-			ID:       uuid.New(),
-			Name:     "Staff User",
-			Email:    req.Email,
-			Role:     models.RoleStaff,
-			IsActive: true,
-		}
-		hashedPassword = "$2a$10$mockhashedpassword"
-	} else {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		return
-	}
+  // Verify password against hashed password in database
+  err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
+  if err != nil {
+  	c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+  	return
+  }
 
-	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		return
-	}
+  // Check if user is active
+  if !user.IsActive {
+  	c.JSON(http.StatusUnauthorized, gin.H{"error": "Account is deactivated"})
+  	return
+  }
 
-	// Generate tokens
-	accessToken, refreshToken := generateTokens(user)
+  // Generate tokens
+  accessToken, refreshTokenString := generateTokens(*user)
 
-	response := models.AuthResponse{
-		User:        user,
-		AccessToken: accessToken,
-		TokenType:   "Bearer",
-		ExpiresIn:   3600, // 1 hour
-	}
+  response := models.AuthResponse{
+  	User:        *user,
+  	AccessToken: accessToken,
+  	TokenType:   "Bearer",
+  	ExpiresIn:   3600, // 1 hour
+  }
 
-	// TODO: Save refresh token to Redis
-	// This would be implemented when we create the Redis service
+  // Save refresh token to Redis (24 hours expiry)
+  refreshTokenKey := "refresh_token:" + refreshTokenString
+  err = redisClient.Set(ctx, refreshTokenKey, user.ID.String(), 24*time.Hour).Err()
+  if err != nil {
+  	log.Printf("Failed to save refresh token to Redis: %v", err)
+  }
 
-	c.JSON(http.StatusOK, response)
+  c.JSON(http.StatusOK, response)
 }
 
 func RefreshToken(c *gin.Context) {
@@ -127,34 +168,39 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// TODO: Validate refresh token from Redis
-	// This would be implemented when we create the Redis service
-
-	// For now, create a mock validation
-	if req.RefreshToken == "mock-refresh-token" {
-		// Get user from token claims
-		user := models.User{
-			ID:       uuid.New(),
-			Name:     "Mock User",
-			Email:    "user@example.com",
-			Role:     models.RoleStaff,
-			IsActive: true,
-		}
-
-		accessToken, refreshToken := generateTokens(user)
-
-		response := models.AuthResponse{
-			User:        user,
-			AccessToken: accessToken,
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		}
-
-		c.JSON(http.StatusOK, response)
-	} else {
+	// Validate refresh token from Redis
+		tokenKey := "refresh_token:" + req.RefreshToken
+		userIDStr, err := redisClient.Get(ctx, tokenKey).Result()
+	if err != nil || userIDStr == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
 		return
 	}
+
+	// Parse user ID from Redis
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+		return
+	}
+
+	// Get user from database
+	user, err := userService.GetUser(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Generate new access token
+	accessToken, _ := generateTokens(*user)
+
+	response := models.AuthResponse{
+		User:        *user,
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   3600,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func ForgotPassword(c *gin.Context) {
@@ -166,10 +212,27 @@ func ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	// TODO: Generate password reset token and send email
-	// This would be implemented when we create the email service
+	// Generate reset token
+	resetToken := uuid.New().String()
 
-	c.JSON(http.StatusOK, gin.H{"message": "Password reset email sent"})
+	// Store token in Redis with 1 hour expiry
+	resetTokenKey := "password_reset:" + resetToken
+	err := redisClient.Set(ctx, resetTokenKey, req.Email, time.Hour).Err()
+	if err != nil {
+		log.Printf("Failed to store password reset token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process password reset request"})
+		return
+	}
+
+	// Send password reset email using the email service
+	err = emailService.SendPasswordResetEmail(req.Email, resetToken)
+	if err != nil {
+		log.Printf("Failed to send password reset email: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send password reset email"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password reset email sent successfully"})
 }
 
 func ResetPassword(c *gin.Context) {
@@ -182,8 +245,65 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// TODO: Validate reset token and update password
-	// This would be implemented when we create the database service
+	// Validate password strength
+	if len(req.Password) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Password must be at least 8 characters long"})
+		return
+	}
+
+	// Validate reset token from Redis
+	resetTokenKey := "password_reset:" + req.Token
+	email, err := redisClient.Get(ctx, resetTokenKey).Result()
+	if err != nil || email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired reset token"})
+		return
+	}
+
+	// Get user by email
+	user, err := userService.GetUserByEmail(email)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	// Update user password in database
+	updates := map[string]interface{}{
+		"password": string(hashedPassword),
+	}
+	err = userService.UpdateUser(user.ID, updates)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password: " + err.Error()})
+		return
+	}
+
+	// Delete used reset token
+	redisClient.Del(ctx, resetTokenKey)
+
+	// Create audit log
+	auditLog := &models.AuditLog{
+		ID:         uuid.New(),
+		TableName:  "users",
+		RecordID:   user.ID,
+		Action:     models.ActionUpdate,
+		OldValues:  map[string]interface{}{"password": "[REDACTED]"},
+		NewValues:  map[string]interface{}{"password": "[REDACTED]"},
+		ChangedBy:  user.ID,
+		ChangedAt:  time.Now(),
+		IPAddress:  c.ClientIP(),
+		UserAgent:  c.GetHeader("User-Agent"),
+	}
+
+	err = auditService.CreateAuditLog(auditLog)
+	if err != nil {
+		log.Printf("Failed to create audit log: %v", err)
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
 }
@@ -195,17 +315,11 @@ func GetProfile(c *gin.Context) {
 		return
 	}
 
-	// TODO: Get user profile from database
-	// This would be implemented when we create the database service
-
-	user := models.User{
-		ID:       userID,
-		Name:     "Mock User",
-		Email:    "user@example.com",
-		Role:     models.RoleStaff,
-		IsActive: true,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	// Get user profile from database
+	user, err := userService.GetUser(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
 	}
 
 	c.JSON(http.StatusOK, user)
@@ -224,18 +338,56 @@ func UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// TODO: Update user profile in database
-	// This would be implemented when we create the database service
-
-	user := models.User{
-		ID:        userID,
-		Name:      "Updated User",
-		Email:     "user@example.com",
-		Role:      models.RoleStaff,
-		IsActive:  true,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	// Get old user data for audit log
+	oldUser, err := userService.GetUser(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
 	}
+
+	// Build updates map
+	updates := make(map[string]interface{})
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.Email != nil {
+		updates["email"] = *req.Email
+	}
+	if req.Role != nil {
+		updates["role"] = *req.Role
+	}
+	if req.IsActive != nil {
+		updates["is_active"] = *req.IsActive
+	}
+
+	// Update user profile in database
+	err = userService.UpdateUser(userID, updates)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user profile: " + err.Error()})
+		return
+	}
+
+	// Get updated user
+	user, err := userService.GetUser(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get updated user: " + err.Error()})
+		return
+	}
+
+	// Create audit log
+	createAuditLog(c, "users", userID, models.ActionUpdate,
+		map[string]interface{}{
+			"name":     oldUser.Name,
+			"email":    oldUser.Email,
+			"role":     oldUser.Role,
+			"is_active": oldUser.IsActive,
+		},
+		map[string]interface{}{
+			"name":     user.Name,
+			"email":    user.Email,
+			"role":     user.Role,
+			"is_active": user.IsActive,
+		})
 
 	c.JSON(http.StatusOK, user)
 }

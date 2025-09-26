@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,14 +30,15 @@ func RateLimit() gin.HandlerFunc {
 		clientIP := c.ClientIP()
 
 		// Check rate limit (100 requests per minute)
-		now := int64(60) // 1 minute window
+		now := time.Now().Unix()
 		limit := 100
+		window := int64(60) // 1 minute window
 
 		if requests, exists := limiter[clientIP]; exists {
 			// Remove old requests outside the window
 			var validRequests []int64
 			for _, reqTime := range requests {
-				if now-reqTime < 60 {
+				if now-reqTime < window {
 					validRequests = append(validRequests, reqTime)
 				}
 			}
