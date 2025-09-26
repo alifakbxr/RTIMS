@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs-18_x", "go-1.21", "postgresql_15"]
+nixPkgs = ["nodejs-18_x", "go-1.21", "postgresql_15", "docker", "docker-compose"]
 
 [phases.install]
 cmds = [

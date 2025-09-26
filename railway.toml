@@ -2,11 +2,14 @@
 builder = "dockerfile"
 
 [deploy]
-startCommand = "docker-compose -f docker-compose.production.yml up"
+startCommand = "docker-compose -f docker-compose.production.yml up --build"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
+
+# Railway will automatically detect services from docker-compose.production.yml
+# The following service definitions help with configuration
 
 [services.backend]
 name = "rtims-backend"

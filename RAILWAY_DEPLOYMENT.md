@@ -12,10 +12,11 @@ Before deploying to Railway, ensure you have:
 
 ## Project Overview
 
-- **Backend**: Go application with Gin framework
-- **Frontend**: Next.js application with TypeScript
-- **Database**: PostgreSQL with migration support
-- **Architecture**: Multi-service Docker setup
+- **Backend**: Go application with Gin framework (in `backend/` directory)
+- **Frontend**: Next.js application with TypeScript (in `frontend/` directory)
+- **Database**: PostgreSQL with migration support (in `database/` directory)
+- **Architecture**: Multi-service Docker setup using Docker Compose
+- **Deployment**: Railway with individual service containers
 
 ## Step 1: Railway Setup
 
@@ -110,8 +111,8 @@ railway run --service rtims-postgres -- psql $DATABASE_URL -f database/migration
 
 In your Railway project settings:
 
-1. **Build Command**: Leave empty (uses Dockerfile)
-2. **Start Command**: `docker-compose -f docker-compose.production.yml up`
+1. **Build Command**: Leave empty (uses docker-compose)
+2. **Start Command**: `docker-compose -f docker-compose.production.yml up --build`
 3. **Root Directory**: `./`
 4. **Watch Paths**:
    - `backend/**`
@@ -163,17 +164,19 @@ After deployment, you'll get URLs like:
 **Symptoms**: Deployment fails during build phase
 
 **Solutions**:
-1. Check Dockerfile syntax:
+1. Check individual Dockerfile syntax:
    ```dockerfile
-   # Ensure proper Go version in backend/Dockerfile
+   # Backend Dockerfile (backend/Dockerfile)
    FROM golang:1.21-alpine AS builder
 
-   # Ensure proper Node.js version in frontend/Dockerfile
+   # Frontend Dockerfile (frontend/Dockerfile)
    FROM node:18-alpine AS base
    ```
 
-2. Verify nixpacks.toml configuration
-3. Check available disk space in Railway
+2. Verify docker-compose.production.yml configuration
+3. Check nixpacks.toml configuration
+4. Check available disk space in Railway
+5. Ensure all required services are properly defined in docker-compose.production.yml
 
 ### Error 2: Database Connection Issues
 
