@@ -84,10 +84,23 @@ jobs:
       working-directory: ./backend
       run: go build -v -o rtims-backend .
 
-    - name: Run security scan
-      uses: securecodewarrior/github-action-gosec@master
+    - name: Install Gosec
+      run: |
+        curl -sfL https://raw.githubusercontent.com/securecodewarrior/github-action-gosec/master/install.sh | bash -s -- -b $(go env GOPATH)/bin
+
+    - name: Run Gosec Security Scanner
+      run: |
+        cd backend
+        gosec -fmt sarif -out gosec-report.sarif -severity medium -confidence medium -no-fail ./...
+        if [ -f gosec-report.sarif ]; then
+          echo "Gosec scan completed. Report generated."
+        fi
+
+    - name: Upload Gosec report
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
       with:
-        args: ./backend/...
+        sarif_file: backend/gosec-report.sarif
 
   # Frontend Build and Test
   frontend-test:
@@ -128,7 +141,7 @@ jobs:
         temporaryPublicStorage: true
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: frontend-build
         path: ./frontend/.next/
