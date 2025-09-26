@@ -17,40 +17,7 @@ export default function ReportsPage() {
   const [recentReports, setRecentReports] = useState<RecentReport[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const defaultReportTypes = [
-    {
-      id: 'inventory',
-      name: 'Inventory Report',
-      description: 'Complete overview of all products and stock levels',
-      icon: 'Package',
-      color: 'blue',
-      available: true,
-    },
-    {
-      id: 'movements',
-      name: 'Stock Movements',
-      description: 'Track all inventory changes and transactions',
-      icon: 'Activity',
-      color: 'green',
-      available: true,
-    },
-    {
-      id: 'users',
-      name: 'User Activity',
-      description: 'User actions and system usage statistics',
-      icon: 'Users',
-      color: 'purple',
-      available: false,
-    },
-    {
-      id: 'financial',
-      name: 'Financial Summary',
-      description: 'Revenue, costs, and profit analysis',
-      icon: 'TrendingUp',
-      color: 'orange',
-      available: false,
-    },
-  ]
+  const [defaultReportTypes, setDefaultReportTypes] = useState<ReportType[]>([])
 
   useEffect(() => {
     const fetchReportsData = async () => {

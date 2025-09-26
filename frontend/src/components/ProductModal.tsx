@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Product, CreateProductRequest, UpdateProductRequest } from '@/types'
+import { Product, CreateProductRequest, UpdateProductRequest, Category } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { X } from 'lucide-react'
 import { productsApi } from '@/lib/products'
+import { categoriesApi } from '@/lib/categories'
 
 interface ProductModalProps {
   isOpen: boolean
@@ -24,20 +25,8 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
     minimum_threshold: 0,
     supplier_info: '',
   })
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
-
-  const categories = [
-    'Electronics',
-    'Clothing',
-    'Food & Beverage',
-    'Home & Garden',
-    'Sports & Outdoors',
-    'Books & Media',
-    'Health & Beauty',
-    'Automotive',
-    'Office Supplies',
-    'Toys & Games'
-  ]
 
   useEffect(() => {
     if (product) {
@@ -62,6 +51,21 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       })
     }
   }, [product, isOpen])
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const categoriesData = await categoriesApi.getCategories()
+        setCategories(categoriesData)
+      } catch (error) {
+        console.error('Failed to fetch categories:', error)
+      }
+    }
+
+    if (isOpen) {
+      fetchCategories()
+    }
+  }, [isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -167,7 +171,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
             >
               <option value="">Select a category</option>
               {categories.map((category) => (
-                <option key={category} value={category}>{category}</option>
+                <option key={category.id} value={category.name}>{category.name}</option>
               ))}
             </select>
           </div>

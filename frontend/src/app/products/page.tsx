@@ -7,14 +7,16 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Navigation } from '@/components/ui/navigation'
-import { Product, ProductFilter } from '@/types'
+import { Product, ProductFilter, Category } from '@/types'
 import { Search, Plus, Edit, Trash2, Package, AlertTriangle } from 'lucide-react'
 import { ProductModal } from '@/components/ProductModal'
 import { productsApi } from '@/lib/products'
+import { categoriesApi } from '@/lib/categories'
 
 export default function ProductsPage() {
   const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -22,11 +24,19 @@ export default function ProductsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
-  const categories = ['Electronics', 'Clothing', 'Food & Beverage', 'Home & Garden', 'Sports & Outdoors', 'Books & Media', 'Health & Beauty', 'Automotive', 'Office Supplies', 'Toys & Games']
-
   useEffect(() => {
     fetchProducts()
+    fetchCategories()
   }, [searchTerm, selectedCategory, showLowStockOnly])
+
+  const fetchCategories = async () => {
+    try {
+      const categoriesData = await categoriesApi.getCategories()
+      setCategories(categoriesData)
+    } catch (error) {
+      console.error('Failed to fetch categories:', error)
+    }
+  }
 
   const fetchProducts = async () => {
     try {
@@ -123,7 +133,7 @@ export default function ProductsPage() {
                 >
                   <option value="">All Categories</option>
                   {categories.map((category) => (
-                    <option key={category} value={category}>{category}</option>
+                    <option key={category.id} value={category.name}>{category.name}</option>
                   ))}
                 </select>
                 <label className="flex items-center gap-2">
