@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.next/
+*.log
+
+# Environment files (will be set in Railway dashboard)
+.env*
+!.env.example
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Test files
+*_test.go
+**/*_test.go
+test/
+tests/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Other
+coverage.out
+*.tmp

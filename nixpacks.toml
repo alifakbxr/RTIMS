@@ -1,0 +1,17 @@
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "go-1.21", "postgresql_15"]
+
+[phases.install]
+cmds = [
+    "cd backend && go mod download",
+    "cd frontend && npm ci --production=false"
+]
+
+[phases.build]
+cmds = [
+    "cd backend && go build -o rtims-backend main.go",
+    "cd frontend && npm run build"
+]
+
+[start]
+cmd = "docker-compose -f docker-compose.production.yml up --build"
