@@ -102,7 +102,11 @@ func Register(c *gin.Context) {
 	}
 
 	// Generate tokens
-	accessToken, _ := generateTokens(user)
+	accessToken, _, err := generateTokens(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
+		return
+	}
 
 	response := models.AuthResponse{
 		User:        user,
@@ -142,7 +146,11 @@ func Login(c *gin.Context) {
   }
 
   // Generate tokens
-  accessToken, refreshTokenString := generateTokens(*user)
+  accessToken, refreshTokenString, err := generateTokens(*user)
+  if err != nil {
+  	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
+  	return
+  }
 
   response := models.AuthResponse{
   	User:        *user,
@@ -191,7 +199,11 @@ func RefreshToken(c *gin.Context) {
 	}
 
 	// Generate new access token
-	accessToken, _ := generateTokens(*user)
+	accessToken, _, err := generateTokens(*user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+		return
+	}
 
 	response := models.AuthResponse{
 		User:        *user,
@@ -392,30 +404,38 @@ func UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-func generateTokens(user models.User) (string, string) {
-	// Generate access token (1 hour)
-	accessClaims := models.Claims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
+func generateTokens(user models.User) (string, string, error) {
+ 	// Generate access token (1 hour)
+ 	accessClaims := models.Claims{
+ 		UserID: user.ID,
+ 		Email:  user.Email,
+ 		Role:   user.Role,
+ 		RegisteredClaims: jwt.RegisteredClaims{
+ 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+ 			IssuedAt:  jwt.NewNumericDate(time.Now()),
+ 			Subject:   user.ID.String(),
+ 		},
+ 	}
 
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessTokenString, _ := accessToken.SignedString(jwtSecret)
+ 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+ 	accessTokenString, err := accessToken.SignedString(jwtSecret)
+ 	if err != nil {
+ 		return "", "", fmt.Errorf("failed to generate access token: %w", err)
+ 	}
 
-	// Generate refresh token (24 hours)
-	refreshClaims := jwt.RegisteredClaims{
-		Subject:   user.ID.String(),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	}
+ 	// Generate refresh token (24 hours) - using different secret for security
+ 	refreshClaims := jwt.RegisteredClaims{
+ 		Subject:   user.ID.String(),
+ 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+ 		IssuedAt:  jwt.NewNumericDate(time.Now()),
+ 		ID:       uuid.New().String(), // Unique token ID
+ 	}
 
-	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refreshTokenString, _ := refreshToken.SignedString(jwtSecret)
+ 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+ 	refreshTokenString, err := refreshToken.SignedString(jwtSecret)
+ 	if err != nil {
+ 		return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
+ 	}
 
-	return accessTokenString, refreshTokenString
-}
+ 	return accessTokenString, refreshTokenString, nil
+ }

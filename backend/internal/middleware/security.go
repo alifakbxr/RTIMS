@@ -21,39 +21,59 @@ func SecurityHeaders() gin.HandlerFunc {
 }
 
 func RateLimit() gin.HandlerFunc {
-	// Simple in-memory rate limiting
-	// In production, use Redis for distributed rate limiting
-	limiter := make(map[string][]int64)
+ 	// Simple in-memory rate limiting with cleanup
+ 	// In production, use Redis for distributed rate limiting
+ 	limiter := make(map[string][]int64)
+ 	lastCleanup := time.Now()
 
-	return func(c *gin.Context) {
-		// Get client IP
-		clientIP := c.ClientIP()
+ 	return func(c *gin.Context) {
+ 		// Get client IP
+ 		clientIP := c.ClientIP()
 
-		// Check rate limit (100 requests per minute)
-		now := time.Now().Unix()
-		limit := 100
-		window := int64(60) // 1 minute window
+ 		// Cleanup old entries every 5 minutes to prevent memory leaks
+ 		now := time.Now().Unix()
+ 		if now-lastCleanup > 300 {
+ 			for ip, requests := range limiter {
+ 				var validRequests []int64
+ 				window := int64(60) // 1 minute window
+ 				for _, reqTime := range requests {
+ 					if now-reqTime < window {
+ 						validRequests = append(validRequests, reqTime)
+ 					}
+ 				}
+ 				if len(validRequests) == 0 {
+ 					delete(limiter, ip)
+ 				} else {
+ 					limiter[ip] = validRequests
+ 				}
+ 			}
+ 			lastCleanup = now
+ 		}
 
-		if requests, exists := limiter[clientIP]; exists {
-			// Remove old requests outside the window
-			var validRequests []int64
-			for _, reqTime := range requests {
-				if now-reqTime < window {
-					validRequests = append(validRequests, reqTime)
-				}
-			}
+ 		// Check rate limit (100 requests per minute)
+ 		limit := 100
+ 		window := int64(60) // 1 minute window
 
-			if len(validRequests) >= limit {
-				c.JSON(429, gin.H{"error": "Too many requests"})
-				c.Abort()
-				return
-			}
+ 		if requests, exists := limiter[clientIP]; exists {
+ 			// Remove old requests outside the window
+ 			var validRequests []int64
+ 			for _, reqTime := range requests {
+ 				if now-reqTime < window {
+ 					validRequests = append(validRequests, reqTime)
+ 				}
+ 			}
 
-			limiter[clientIP] = append(validRequests, now)
-		} else {
-			limiter[clientIP] = []int64{now}
-		}
+ 			if len(validRequests) >= limit {
+ 				c.JSON(429, gin.H{"error": "Too many requests", "retry_after": 60})
+ 				c.Abort()
+ 				return
+ 			}
 
-		c.Next()
-	}
-}
+ 			limiter[clientIP] = append(validRequests, now)
+ 		} else {
+ 			limiter[clientIP] = []int64{now}
+ 		}
+
+ 		c.Next()
+ 	}
+ }

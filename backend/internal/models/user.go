@@ -61,12 +61,6 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
-type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Email  string    `json:"email"`
-	Role   UserRole  `json:"role"`
-	jwt.RegisteredClaims
-}
 
 type UserFilter struct {
 	Page     int    `form:"page" json:"page"`

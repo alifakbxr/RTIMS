@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"rtims-backend/config"
 	"rtims-backend/internal/database"
@@ -24,8 +25,16 @@ func main() {
 	// Initialize configuration
 	cfg := config.Load()
 
-	// Initialize JWT secret
-	middleware.InitJWTSecret(cfg)
+	// Initialize JWT secret with logging
+		log.Printf("Initializing JWT secret...")
+		if cfg.JWTSecret == "" {
+			log.Fatal("JWT_SECRET is not set in environment variables")
+		}
+		if len(cfg.JWTSecret) < 32 {
+			log.Printf("Warning: JWT_SECRET is shorter than recommended (32 characters). Current length: %d", len(cfg.JWTSecret))
+		}
+		middleware.InitJWTSecret(cfg)
+		log.Printf("JWT secret initialized successfully (length: %d characters)", len(cfg.JWTSecret))
 
 	// Database and Redis are already initialized above
 
@@ -33,13 +42,27 @@ func main() {
 	wsHub := websocket.NewHub()
 	go wsHub.Run()
 
-	// Initialize database
-	db := database.InitDB(cfg.DatabaseURL)
-	defer db.Close()
+	// Initialize database with enhanced validation
+		log.Println("Initializing database connection...")
+		db := database.InitDB(cfg.DatabaseURL)
+		defer db.Close()
 
-	// Initialize Redis client
-	redisClient := database.InitRedis(cfg.RedisURL)
-	defer redisClient.Close()
+		// Validate database connection and required tables
+		if err := database.ValidateDatabaseConnection(db); err != nil {
+			log.Fatal("Database validation failed:", err)
+		}
+		log.Println("Database connection validated successfully")
+
+		// Initialize Redis client with enhanced validation
+		log.Println("Initializing Redis connection...")
+		redisClient := database.InitRedis(cfg.RedisURL)
+		defer redisClient.Close()
+
+		// Validate Redis connection
+		if err := database.ValidateRedisConnection(redisClient); err != nil {
+			log.Fatal("Redis validation failed:", err)
+		}
+		log.Println("Redis connection validated successfully")
 
 	// Set Gin mode
 	if cfg.Environment == "production" {
@@ -54,6 +77,7 @@ func main() {
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
 	r.Use(middleware.SecurityHeaders())
+	r.Use(middleware.RateLimit())
 
 	// Initialize audit middleware with database
 	auditMiddleware := middleware.NewAuditMiddleware(db)
@@ -78,13 +102,43 @@ func main() {
 		}
 
 		// Protected routes
-		protected := v1.Group("/")
-		protected.Use(middleware.JWTAuth())
-		protected.Use(auditMiddleware.AuditLog())
-		{
-			// User routes
-			protected.GET("/profile", handlers.GetProfile)
-			protected.PUT("/profile", handlers.UpdateProfile)
+			protected := v1.Group("/")
+			protected.Use(middleware.JWTAuth())
+			protected.Use(auditMiddleware.AuditLog())
+			{
+				// Test endpoint for JWT middleware verification
+				protected.GET("/test-auth", func(c *gin.Context) {
+					userID, exists := c.Get("user_id")
+					if !exists {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "User ID not found in context"})
+						return
+					}
+
+					email, exists := c.Get("email")
+					if !exists {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Email not found in context"})
+						return
+					}
+
+					role, exists := c.Get("role")
+					if !exists {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Role not found in context"})
+						return
+					}
+
+					c.JSON(http.StatusOK, gin.H{
+						"message": "JWT authentication successful",
+						"user_id": userID,
+						"email":   email,
+						"role":    role,
+						"path":    c.Request.URL.Path,
+						"method":  c.Request.Method,
+					})
+				})
+
+				// User routes
+				protected.GET("/profile", handlers.GetProfile)
+				protected.PUT("/profile", handlers.UpdateProfile)
 
 			// Initialize product handler
 			productHandler := handlers.NewProductHandler(db, redisClient, wsHub)

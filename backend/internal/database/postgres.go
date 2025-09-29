@@ -18,39 +18,118 @@ import (
 )
 
 func InitDB(databaseURL string) *sql.DB {
-	db, err := sql.Open("postgres", databaseURL)
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
-	}
+ 	log.Printf("Opening database connection to: %s", databaseURL)
 
-	// Configure connection pool
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
+ 	db, err := sql.Open("postgres", databaseURL)
+ 	if err != nil {
+ 		log.Fatal("Failed to open database connection:", err)
+ 	}
 
-	// Test the connection
-	if err := db.Ping(); err != nil {
-		log.Fatal("Failed to ping database:", err)
-	}
+ 	// Configure connection pool
+ 	db.SetMaxOpenConns(25)
+ 	db.SetMaxIdleConns(25)
+ 	db.SetConnMaxLifetime(5 * time.Minute)
+ 	log.Printf("Database connection pool configured: MaxOpen=%d, MaxIdle=%d, MaxLifetime=5min", 25, 25)
 
-	log.Println("Successfully connected to PostgreSQL database")
-	return db
-}
+ 	// Test the connection
+ 	log.Println("Testing database connection...")
+ 	if err := db.Ping(); err != nil {
+ 		log.Fatal("Failed to ping database:", err)
+ 	}
+
+ 	log.Println("Successfully connected to PostgreSQL database")
+ 	return db
+ }
 
 func InitRedis(redisURL string) *redis.Client {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     strings.TrimPrefix(redisURL, "redis://"),
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+ 	log.Printf("Initializing Redis client with URL: %s", redisURL)
 
-	// Test the connection
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		log.Fatal("Failed to connect to Redis:", err)
-	}
+ 	rdb := redis.NewClient(&redis.Options{
+ 		Addr:     strings.TrimPrefix(redisURL, "redis://"),
+ 		Password: "", // no password set
+ 		DB:       0,  // use default DB
+ 	})
 
-	log.Println("Successfully connected to Redis")
-	return rdb
+ 	// Test the connection
+ 	log.Println("Testing Redis connection...")
+ 	if err := rdb.Ping(context.Background()).Err(); err != nil {
+ 		log.Fatal("Failed to connect to Redis:", err)
+ 	}
+
+ 	log.Println("Successfully connected to Redis")
+ 	return rdb
+ }
+
+// ValidateDatabaseConnection validates the database connection and required tables
+func ValidateDatabaseConnection(db *sql.DB) error {
+ 	// Test basic connectivity
+ 	if err := db.Ping(); err != nil {
+ 		return fmt.Errorf("database ping failed: %w", err)
+ 	}
+
+ 	// Check if required tables exist
+ 	requiredTables := []string{
+ 		"users", "products", "categories", "stock_movements",
+ 		"notifications", "audit_logs", "system_settings",
+ 	}
+
+ 	for _, table := range requiredTables {
+ 		var exists bool
+ 		query := `
+ 			SELECT EXISTS (
+ 				SELECT FROM information_schema.tables
+ 				WHERE table_schema = 'public'
+ 				AND table_name = $1
+ 			)
+ 		`
+ 		err := db.QueryRow(query, table).Scan(&exists)
+ 		if err != nil {
+ 			return fmt.Errorf("failed to check table %s: %w", table, err)
+ 		}
+ 		if !exists {
+ 			log.Printf("Warning: Table %s does not exist", table)
+ 		}
+ 	}
+
+ 	// Test basic operations
+ 	var count int
+ 	if err := db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count); err != nil {
+ 		log.Printf("Warning: Could not query users table: %v", err)
+ 	}
+
+ 	return nil
+}
+
+// ValidateRedisConnection validates the Redis connection
+func ValidateRedisConnection(rdb *redis.Client) error {
+ 	// Test basic connectivity
+ 	if err := rdb.Ping(context.Background()).Err(); err != nil {
+ 		return fmt.Errorf("redis ping failed: %w", err)
+ 	}
+
+ 	// Test basic operations
+ 	testKey := "test_connection"
+ 	testValue := "test_value"
+
+ 	if err := rdb.Set(context.Background(), testKey, testValue, 0).Err(); err != nil {
+ 		return fmt.Errorf("redis set operation failed: %w", err)
+ 	}
+
+ 	var result string
+ 	if err := rdb.Get(context.Background(), testKey).Scan(&result); err != nil {
+ 		return fmt.Errorf("redis get operation failed: %w", err)
+ 	}
+
+ 	if result != testValue {
+ 		return fmt.Errorf("redis value mismatch: expected %s, got %s", testValue, result)
+ 	}
+
+ 	// Clean up test data
+ 	if err := rdb.Del(context.Background(), testKey).Err(); err != nil {
+ 		log.Printf("Warning: Failed to clean up test key: %v", err)
+ 	}
+
+ 	return nil
 }
 
 // NotificationService handles notification database operations
