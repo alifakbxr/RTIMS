@@ -65,7 +65,9 @@ func (c *Client) WritePump() {
 		select {
 		case message, ok := <-c.Send:
 			if !ok {
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if err := c.Conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+					log.Printf("Failed to write close message: %v", err)
+				}
 				return
 			}
 
@@ -73,7 +75,10 @@ func (c *Client) WritePump() {
 			if err != nil {
 				return
 			}
-			w.Write(message)
+			if _, err := w.Write(message); err != nil {
+				log.Printf("Failed to write message: %v", err)
+				return
+			}
 
 			if err := w.Close(); err != nil {
 				return

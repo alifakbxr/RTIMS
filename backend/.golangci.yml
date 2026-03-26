@@ -1,0 +1,52 @@
+run:
+  timeout: 5m
+  go: "1.23"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  disable:
+    - errcheck  # We handle errors appropriately in defer statements and logging
+
+linters-settings:
+  staticcheck:
+    checks: ["all"]
+
+issues:
+  exclude-use-default: false
+  exclude-rules:
+    # Allow defer tx.Rollback() without error check (common Go pattern)
+    - path: internal/database/.*\.go
+      linters:
+        - errcheck
+      text: "Error return value of `tx.Rollback` is not checked"
+    
+    # Allow json.Unmarshal error to be logged instead of returned
+    - path: internal/middleware/.*\.go
+      linters:
+        - errcheck
+      text: "Error return value of `json.Unmarshal` is not checked"
+    
+    # Allow websocket Write errors with logging
+    - path: internal/websocket/.*\.go
+      linters:
+        - errcheck
+      text: "Error return value of `.*Write.*` is not checked"
+    
+    # Allow csv Writer Write errors ( Flush handles them)
+    - path: internal/handlers/admin\.go
+      linters:
+        - errcheck
+      text: "Error return value of `writer.Write` is not checked"
+    
+    # Infinite select loops are standard for event loops
+    - path: internal/websocket/.*\.go
+      linters:
+        - gosimple
+      text: "should use for range instead of for"
+

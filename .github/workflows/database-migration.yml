@@ -45,36 +45,43 @@ jobs:
 
     - name: Verify migration files exist
       run: |
-        if [ ! -d "database/migrations" ] || [ -z "$(ls -A database/migrations/*.sql 2>/dev/null)" ]; then
-          echo "Error: No migration files found in database/migrations/"
+        MIGRATION_DIR="$(pwd)/database/migrations"
+        if [ ! -d "$MIGRATION_DIR" ] || [ -z "$(ls -A $MIGRATION_DIR/*.sql 2>/dev/null)" ]; then
+          echo "Error: No migration files found in $MIGRATION_DIR"
           exit 1
         fi
         echo "Found migration files:"
-        ls -la database/migrations/
+        ls -la "$MIGRATION_DIR"
+        echo "Working directory: $(pwd)"
 
     - name: Test migrations - Up
       env:
         DATABASE_URL: "postgres://rtims_user:rtims_password@localhost:5432/rtims_migration_test?sslmode=disable"
       run: |
-        migrate -database "${DATABASE_URL}" -path database/migrations -verbose up
+        MIGRATION_PATH="$(pwd)/database/migrations"
+        echo "Running migrations from: $MIGRATION_PATH"
+        migrate -database "${DATABASE_URL}" -path "$MIGRATION_PATH" -verbose up
 
     - name: Verify migration integrity
       env:
         DATABASE_URL: "postgres://rtims_user:rtims_password@localhost:5432/rtims_migration_test?sslmode=disable"
       run: |
-        migrate -database "${DATABASE_URL}" -path database/migrations version
+        MIGRATION_PATH="$(pwd)/database/migrations"
+        migrate -database "${DATABASE_URL}" -path "$MIGRATION_PATH" version
 
     - name: Test migrations - Down (rollback test)
       env:
         DATABASE_URL: "postgres://rtims_user:rtims_password@localhost:5432/rtims_migration_test?sslmode=disable"
       run: |
-        migrate -database "${DATABASE_URL}" -path database/migrations -verbose down --all
+        MIGRATION_PATH="$(pwd)/database/migrations"
+        migrate -database "${DATABASE_URL}" -path "$MIGRATION_PATH" -verbose down --all
 
     - name: Test migrations - Up again (verify re-migration)
       env:
         DATABASE_URL: "postgres://rtims_user:rtims_password@localhost:5432/rtims_migration_test?sslmode=disable"
       run: |
-        migrate -database "${DATABASE_URL}" -path database/migrations -verbose up
+        MIGRATION_PATH="$(pwd)/database/migrations"
+        migrate -database "${DATABASE_URL}" -path "$MIGRATION_PATH" -verbose up
 
   build-migrator:
     runs-on: ubuntu-latest

@@ -785,7 +785,11 @@ func (s *SettingsService) UpdateSettings(updates map[string]interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}()
 
 	for key, value := range updates {
 		query := `

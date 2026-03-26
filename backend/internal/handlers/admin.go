@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"rtims-backend/internal/database"
 	"rtims-backend/internal/models"
@@ -20,7 +21,27 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var now = time.Now()
+// toTitleCase converts a string to title case (replacement for deprecated strings.Title)
+func toTitleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	runes := []rune(s)
+	inWord := false
+	for i, r := range runes {
+		if unicode.IsLetter(r) {
+			if !inWord {
+				runes[i] = unicode.ToTitle(r)
+				inWord = true
+			} else {
+				runes[i] = unicode.ToLower(r)
+			}
+		} else {
+			inWord = false
+		}
+	}
+	return string(runes)
+}
 
 type AdminHandler struct {
 	userService     *database.UserService
@@ -904,7 +925,7 @@ func (h *AdminHandler) GenerateMovementReport(c *gin.Context) {
 		pdf.SetFont("Arial", "B", 16)
 
 		// Title
-		pdf.Cell(40, 10, fmt.Sprintf("%s Report", strings.Title(reportType)))
+		pdf.Cell(40, 10, fmt.Sprintf("%s Report", toTitleCase(reportType)))
 		pdf.Ln(12)
 
 		pdf.SetFont("Arial", "", 10)
@@ -1230,7 +1251,7 @@ func (h *AdminHandler) GetRecentReports(c *gin.Context) {
 
 		report := gin.H{
 			"id":           id,
-			"name":         fmt.Sprintf("%s Report", strings.Title(tableName)),
+			"name":         fmt.Sprintf("%s Report", toTitleCase(tableName)),
 			"type":         tableName,
 			"format":       "json",
 			"generated_at": changedAt,
@@ -1451,7 +1472,7 @@ func (h *AdminHandler) GenerateReport(c *gin.Context) {
 		pdf.SetFont("Arial", "B", 16)
 
 		// Title
-		pdf.Cell(40, 10, fmt.Sprintf("%s Report", strings.Title(reportType)))
+		pdf.Cell(40, 10, fmt.Sprintf("%s Report", toTitleCase(reportType)))
 		pdf.Ln(12)
 
 		pdf.SetFont("Arial", "", 10)

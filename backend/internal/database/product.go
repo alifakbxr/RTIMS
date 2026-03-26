@@ -255,7 +255,11 @@ func (s *ProductService) UpdateProductStock(productID uuid.UUID, change int, rea
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}()
 
 	// Update product stock
 	query := `UPDATE products SET stock = stock + $1, updated_at = $2 WHERE id = $3`

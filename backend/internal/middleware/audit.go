@@ -88,7 +88,9 @@ func (am *AuditMiddleware) AuditLog() gin.HandlerFunc {
 		if c.Request.Method == "POST" || c.Request.Method == "PUT" {
 			bodyBytes, err := io.ReadAll(c.Request.Body)
 			if err == nil {
-				json.Unmarshal(bodyBytes, &requestBody)
+				if err := json.Unmarshal(bodyBytes, &requestBody); err != nil {
+					log.Printf("Failed to unmarshal request body: %v", err)
+				}
 				// Restore the request body
 				c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 			}

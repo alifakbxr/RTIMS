@@ -63,6 +63,7 @@ jobs:
       with:
         version: latest
         working-directory: ./backend
+        args: --config=.golangci.yml
 
     - name: Run Go tests
       working-directory: ./backend
@@ -91,14 +92,15 @@ jobs:
     - name: Run Gosec Security Scanner
       working-directory: ./backend
       run: |
-        $(go env GOPATH)/bin/gosec -fmt sarif -out ../gosec-report.sarif -severity medium -confidence medium -no-fail ./...
+        $(go env GOPATH)/bin/gosec -fmt sarif -out gosec-report.sarif -severity medium -confidence medium -no-fail ./...
         echo "Gosec scan completed"
+        ls -la gosec-report.sarif
 
     - name: Upload Gosec report
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always()
       with:
-        sarif_file: gosec-report.sarif
+        sarif_file: backend/gosec-report.sarif
         category: gosec
 
   # Frontend Build and Test
@@ -162,7 +164,7 @@ jobs:
         exit-code: '0'
 
     - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
