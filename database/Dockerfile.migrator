@@ -4,8 +4,9 @@ FROM golang:1.23-alpine AS builder
 RUN apk add --no-cache curl
 
 # Download and install golang-migrate
-RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz && \
-    mv migrate /usr/local/bin/migrate
+RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz && \
+    mv migrate /usr/local/bin/migrate && \
+    chmod +x /usr/local/bin/migrate
 
 FROM alpine:latest
 
@@ -22,4 +23,7 @@ COPY database/migrations /migrations
 WORKDIR /migrations
 
 # Default command to run migrations
-CMD ["migrate", "-database", "${DATABASE_URL}", "-path", ".", "up"]
+# Usage: docker run -e DATABASE_URL=postgres://... rtims-migrator
+# Or override with: docker run rtims-migrator migrate -database <url> -path /migrations up
+ENTRYPOINT ["migrate", "-database", "${DATABASE_URL}", "-path", "/migrations"]
+CMD ["up"]
