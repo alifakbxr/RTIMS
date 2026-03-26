@@ -1,0 +1,46 @@
+# .gitignore for RTIMS Project
+
+This file ensures that sensitive and generated files are not committed to the repository.
+
+## What's Ignored
+
+### Critical (Never Commit)
+- **Environment files**: `.env`, `.env.local`, `.env.production`, etc.
+- **SSL Certificates**: `*.pem`, `*.key`, `*.crt`
+- **Secrets and credentials**: `secrets/`, `credentials/`, `*.secret`
+
+### Build Artifacts
+- **Backend**: `backend/bin/`, `backend/*.exe`, `backend/vendor/`
+- **Frontend**: `frontend/node_modules/`, `frontend/.next/`, `frontend/out/`
+
+### Database
+- **Backups**: `backups/`, `*.sql`, `*.dump`
+- **Data volumes**: `postgres_data/`, `redis_data/`
+
+### Logs
+- `logs/`, `*.log`, `npm-debug.log*`
+
+### IDE Files
+- `.vscode/`, `.idea/`, `*.iml`
+
+### Operating System
+- `.DS_Store`, `Thumbs.db`, `desktop.ini`
+
+## What's NOT Ignored (Should Commit)
+
+- Source code (`*.go`, `*.ts`, `*.tsx`, `*.js`, `*.jsx`)
+- Configuration files (`go.mod`, `go.sum`, `package.json`, `docker-compose.yml`)
+- Documentation (`*.md`)
+- Deployment scripts (`deploy.sh`, `deploy.bat`, `Makefile`)
+- Nginx configuration (`nginx/nginx.conf`)
+- Database migrations (`database/migrations/*.sql`)
+
+## Environment File Templates
+
+The following template files are committed for reference:
+
+- `backend/.env.example` - Backend environment template
+- `frontend/.env.example` - Frontend environment template
+- `.env.production.example` - Production deployment template
+
+**Copy these templates and remove the `.example` extension to use them.**

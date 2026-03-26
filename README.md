@@ -1,6 +1,47 @@
 # RTIMS - Real-Time Inventory Management System
 
-A comprehensive, full-stack inventory management system built with modern technologies for real-time stock tracking, user management, and reporting.
+[![Build Status](https://github.com/yourusername/rtims/workflows/CI/CD/badge.svg)](https://github.com/yourusername/rtims/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/yourusername/rtims)](https://goreportcard.com/report/github.com/yourusername/rtims)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A comprehensive, production-ready, full-stack inventory management system built with modern technologies for real-time stock tracking, user management, and reporting.
+
+## 🚀 Quick Start
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd RTIMS
+
+# Start with Docker (easiest)
+docker-compose up -d
+
+# Or use make commands
+make setup
+make dev
+```
+
+Access the application:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8080
+- **Swagger Docs**: http://localhost:8080/swagger/index.html
+
+**Default Login**: `admin@example.com` / `admin123`
+
+📖 See [QUICKSTART.md](QUICKSTART.md) for detailed setup instructions.
+📖 See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment guide.
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Quick Start](#-quick-start)
+- [Development](#-development)
+- [API Documentation](#-api-documentation)
+- [Deployment](#-deployment)
+- [Project Structure](#-project-structure)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ## 🚀 Features
 

@@ -1,0 +1,313 @@
+# ===========================
+# RTIMS .gitignore
+# ===========================
+
+# ===========================
+# Operating System Files
+# ===========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ===========================
+# Environment Variables (CRITICAL - Never commit secrets)
+# ===========================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+*.env
+
+# ===========================
+# Backend (Go)
+# ===========================
+# Binaries
+backend/bin/
+backend/*.exe
+backend/*.exe~
+backend/*.dll
+backend/*.so
+backend/*.dylib
+backend/rtims-backend
+backend/main
+
+# Test binary
+backend/*.test
+
+# Output of the go coverage tool
+backend/*.out
+
+# Go workspace file
+backend/go.work
+
+# Dependency directories
+backend/vendor/
+backend/Godeps/
+
+# Go build cache
+backend/.cache/
+
+# Go build output
+backend/dist/
+
+# ===========================
+# Frontend (Next.js / Node.js)
+# ===========================
+# Dependencies
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+
+# Testing
+frontend/coverage/
+frontend/.npm/
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/.next/cache/
+
+# Production build
+frontend/build/
+
+# Debug
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Local env files
+frontend/.env*.local
+
+# Vercel
+frontend/.vercel
+
+# TypeScript
+frontend/*.tsbuildinfo
+frontend/.tsbuildinfo
+
+# ESLint
+frontend/.eslintcache
+
+# Stylelint
+frontend/.stylelintcache
+
+# Prettier
+frontend/.prettierignore
+
+# ===========================
+# Docker
+# ===========================
+# Docker volumes
+postgres_data/
+redis_data/
+postgres_prod_data/
+redis_prod_data/
+
+# Docker compose override
+docker-compose.override.yml
+
+# ===========================
+# Database
+# ===========================
+# Database backups
+backups/
+*.sql
+*.dump
+
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# ===========================
+# Logs
+# ===========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===========================
+# IDE and Editor Files
+# ===========================
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+*.un~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# NeoVim
+.local/share/nvim/swpfiles/
+
+# ===========================
+# Temporary Files
+# ===========================
+tmp/
+temp/
+.tmp/
+.temp/
+*.tmp
+*.temp
+
+# ===========================
+# Build and Distribution
+# ===========================
+dist/
+build/
+release/
+
+# ===========================
+# Documentation
+# ===========================
+# Generated documentation
+docs/api/
+docs/build/
+site/
+
+# ===========================
+# Testing
+# ===========================
+# Test coverage
+coverage/
+*.cover
+*.coverprofile
+test-results/
+
+# ===========================
+# Certificates and Keys
+# ===========================
+# SSL Certificates (CRITICAL - Never commit)
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
+nginx/ssl/*.p12
+*.pem
+*.key
+*.crt
+*.cer
+*.pfx
+*.p12
+
+# SSH keys
+*.ppk
+
+# ===========================
+# Uploads and User Data
+# ===========================
+uploads/
+uploads/*
+!uploads/.gitkeep
+data/
+data/*
+!data/.gitkeep
+
+# ===========================
+# Cache Files
+# ===========================
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.npm/
+.yarn/
+.pnpm-store/
+
+# ===========================
+# CI/CD
+# ===========================
+# GitHub Actions cache
+.github/cache/
+
+# ===========================
+# Misc
+# ===========================
+# Package lock files (uncomment if you don't want to commit them)
+# frontend/package-lock.json
+# frontend/yarn.lock
+
+# Sentry
+.sentryclirc
+
+# dotenv
+.env.vault
+
+# Turborepo
+.turbo/
+
+# Nx
+.nx/
+
+# ===========================
+# Production Specific
+# ===========================
+# Production environment files
+.env.production
+.production.env
+
+# Nginx logs
+nginx/logs/
+
+# ===========================
+# Development Tools
+# ===========================
+# Make
+Makefile.bak
+*.bak
+
+# Shell scripts
+*.sh.bak
+
+# ===========================
+# Database Migration
+# ===========================
+# Migration backups
+database/migrations/backups/
+
+# ===========================
+# Secrets and Credentials
+# ===========================
+# NEVER commit these files
+secrets/
+credentials/
+*.secret
+*.secrets
+config/secrets.yml
+config/credentials.yml.enc
+QWEN.md
+
+# ===========================
+# End of .gitignore
+# ===========================

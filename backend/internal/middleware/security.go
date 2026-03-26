@@ -24,7 +24,7 @@ func RateLimit() gin.HandlerFunc {
  	// Simple in-memory rate limiting with cleanup
  	// In production, use Redis for distributed rate limiting
  	limiter := make(map[string][]int64)
- 	lastCleanup := time.Now()
+ 	var lastCleanup int64 = time.Now().Unix()
 
  	return func(c *gin.Context) {
  		// Get client IP

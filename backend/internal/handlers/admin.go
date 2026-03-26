@@ -71,7 +71,7 @@ func createAuditLog(c *gin.Context, tableName string, recordID uuid.UUID, action
 	// Note: This would be handled by the audit middleware in production
 	// but keeping this helper for specific audit logging needs
 	// For now, we'll use the audit service to log the action
-	if err := h.auditService.CreateAuditLog(auditLog); err != nil {
+	if err := auditService.CreateAuditLog(&auditLog); err != nil {
 		log.Printf("Failed to create audit log: %v", err)
 	}
 }
